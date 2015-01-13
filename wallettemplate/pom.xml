@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.bitcoinj</groupId>
-    <artifactId>wallettemplate</artifactId>
+    <artifactId>pomegranate-wallettemplate</artifactId>
     <version>1.0</version>
 
     <build>
@@ -55,7 +55,7 @@
     <dependencies>
         <dependency>
             <groupId>org.bitcoinj</groupId>
-            <artifactId>bitcoinj-core</artifactId>
+            <artifactId>pomegranate-bitcoinj-core</artifactId>
             <version>0.12</version>
         </dependency>
         <dependency>
