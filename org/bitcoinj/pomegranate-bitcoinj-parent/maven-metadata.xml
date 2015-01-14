@@ -3,10 +3,9 @@
   <groupId>org.bitcoinj</groupId>
   <artifactId>pomegranate-bitcoinj-parent</artifactId>
   <versioning>
-    <release>0.12</release>
     <versions>
-      <version>0.12</version>
+      <version>0.12.0.1-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20150113213248</lastUpdated>
+    <lastUpdated>20150114160453</lastUpdated>
   </versioning>
 </metadata>
