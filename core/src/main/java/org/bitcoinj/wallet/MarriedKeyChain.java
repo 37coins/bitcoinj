@@ -256,6 +256,20 @@ public class MarriedKeyChain extends DeterministicKeyChain {
     }
 
     @Override
+    public void maybeLookAhead() {
+        lock.lock();
+        try {
+            super.maybeLookAhead();
+            for (DeterministicKeyChain keyChain : followingKeyChains) {
+                keyChain.maybeLookAhead();
+            }
+        } finally {
+            lock.unlock();
+        }
+        
+    }
+    
+    @Override
     public void maybeLookAheadScripts() {
         super.maybeLookAheadScripts();
         int numLeafKeys = getLeafKeys().size();

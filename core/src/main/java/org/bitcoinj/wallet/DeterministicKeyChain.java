@@ -27,13 +27,16 @@ import org.bitcoinj.utils.Threading;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongycastle.crypto.params.KeyParameter;
 import org.spongycastle.math.ec.ECPoint;
 
 import javax.annotation.Nullable;
+
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.*;
@@ -759,6 +762,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
         List<DeterministicKeyChain> chains = newLinkedList();
         DeterministicSeed seed = null;
         DeterministicKeyChain chain = null;
+        List<DeterministicKeyChain> followingChains = Lists.newArrayList();
 
         int lookaheadSize = -1;
         int sigsRequiredToSpend = 1;
@@ -770,6 +774,14 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
                     checkState(lookaheadSize >= 0);
                     chain.setLookaheadSize(lookaheadSize);
                     chain.setSigsRequiredToSpend(sigsRequiredToSpend);
+                    if (chain.isFollowing()) {
+                        followingChains.add(chain);
+                    } else if (!followingChains.isEmpty()) {
+                        if (!(chain instanceof MarriedKeyChain))
+                            throw new IllegalStateException();
+                        ((MarriedKeyChain)chain).setFollowingKeyChains(followingChains);
+                        followingChains = Lists.newArrayList();
+                    }                        
                     chain.maybeLookAhead();
                     chains.add(chain);
                     chain = null;
@@ -822,6 +834,14 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
                         checkState(lookaheadSize >= 0);
                         chain.setLookaheadSize(lookaheadSize);
                         chain.setSigsRequiredToSpend(sigsRequiredToSpend);
+                        if (chain.isFollowing()) {
+                            followingChains.add(chain);
+                        } else if (!followingChains.isEmpty()) {
+                            if (!(chain instanceof MarriedKeyChain))
+                                throw new IllegalStateException();
+                            ((MarriedKeyChain)chain).setFollowingKeyChains(followingChains);
+                            followingChains = Lists.newArrayList();
+                        }                        
                         chain.maybeLookAhead();
                         chains.add(chain);
                         chain = null;
@@ -911,6 +931,14 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
             checkState(lookaheadSize >= 0);
             chain.setLookaheadSize(lookaheadSize);
             chain.setSigsRequiredToSpend(sigsRequiredToSpend);
+            if (chain.isFollowing()) {
+                followingChains.add(chain);
+            } else if (!followingChains.isEmpty()) {
+                if (!(chain instanceof MarriedKeyChain))
+                    throw new IllegalStateException();
+                ((MarriedKeyChain)chain).setFollowingKeyChains(followingChains);
+                followingChains = Lists.newArrayList();
+            }
             chain.maybeLookAhead();
             chains.add(chain);
         }

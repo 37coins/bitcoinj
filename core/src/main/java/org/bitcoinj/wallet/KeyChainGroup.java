@@ -638,7 +638,6 @@ public class KeyChainGroup implements KeyBag {
         EnumMap<KeyChain.KeyPurpose, DeterministicKey> currentKeys = null;
         if (!chains.isEmpty())
             currentKeys = createCurrentKeysMap(chains);
-        extractFollowingKeychains(chains);
         return new KeyChainGroup(params, basicKeyChain, chains, currentKeys, null);
     }
 
@@ -649,7 +648,6 @@ public class KeyChainGroup implements KeyBag {
         EnumMap<KeyChain.KeyPurpose, DeterministicKey> currentKeys = null;
         if (!chains.isEmpty())
             currentKeys = createCurrentKeysMap(chains);
-        extractFollowingKeychains(chains);
         return new KeyChainGroup(params, basicKeyChain, chains, currentKeys, crypter);
     }
 
@@ -750,24 +748,6 @@ public class KeyChainGroup implements KeyBag {
             currentKeys.put(KeyChain.KeyPurpose.CHANGE, currentInternalKey);
         }
         return currentKeys;
-    }
-
-    private static void extractFollowingKeychains(List<DeterministicKeyChain> chains) {
-        // look for following key chains and map them to the watch keys of followed keychains
-        Multimap<DeterministicKey, DeterministicKeyChain> followingKeychains = HashMultimap.create();
-        List<DeterministicKeyChain> followingChains = Lists.newArrayList();
-        for (Iterator<DeterministicKeyChain> it = chains.iterator(); it.hasNext(); ) {
-            DeterministicKeyChain chain = it.next();
-            if (chain.isFollowing()) {
-                followingChains.add(chain);
-                it.remove();
-            } else if (!followingChains.isEmpty()) {
-                if (!(chain instanceof MarriedKeyChain))
-                    throw new IllegalStateException();
-                ((MarriedKeyChain)chain).setFollowingKeyChains(followingChains);
-                followingChains = Lists.newArrayList();
-            }
-        }
     }
 
     public String toString(boolean includePrivateKeys) {
