@@ -3,10 +3,9 @@
   <groupId>org.bitcoinj</groupId>
   <artifactId>pomegranate-wallettemplate</artifactId>
   <versioning>
-    <release>0.13.0.1</release>
     <versions>
-      <version>0.13.0.1</version>
+      <version>0.13.0.2-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20150209163451</lastUpdated>
+    <lastUpdated>20150209190102</lastUpdated>
   </versioning>
 </metadata>
