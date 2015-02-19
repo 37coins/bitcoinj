@@ -258,6 +258,8 @@ public class PeerGroup implements TransactionBroadcaster {
     /** The default timeout between when a connection attempt begins and version message exchange completes */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 5000;
     private volatile int vConnectTimeoutMillis = DEFAULT_CONNECT_TIMEOUT_MILLIS;
+    
+    private boolean bloomFilteringEnabled = true;
 
     /**
      * Creates a PeerGroup with the given parameters. No chain is provided so this node will report its chain height
@@ -605,7 +607,7 @@ public class PeerGroup implements TransactionBroadcaster {
         // Note that the default here means that no tx invs will be received if no wallet is ever added
         lock.lock();
         try {
-            boolean spvMode = chain != null && !chain.shouldVerifyTransactions();
+            boolean spvMode = (chain != null && !chain.shouldVerifyTransactions()) || !isBloomFilteringEnabled();
             boolean willSendFilter = spvMode && peerFilterProviders.size() > 0;
             ver.relayTxesBeforeFilter = !willSendFilter;
         } finally {
@@ -1051,7 +1053,7 @@ public class PeerGroup implements TransactionBroadcaster {
             public void go() {
                 checkState(!lock.isHeldByCurrentThread());
                 // Fully verifying mode doesn't use this optimization (it can't as it needs to see all transactions).
-                if (chain != null && chain.shouldVerifyTransactions())
+                if ((chain != null && chain.shouldVerifyTransactions()) || !isBloomFilteringEnabled())
                     return;
                 // We only ever call bloomFilterMerger.calculate on jobQueue, so we cannot be calculating two filters at once.
                 FilterMerger.Result result = bloomFilterMerger.calculate(ImmutableList.copyOf(peerFilterProviders /* COW */));
@@ -1873,5 +1875,13 @@ public class PeerGroup implements TransactionBroadcaster {
 
     public boolean isRunning() {
         return vRunning;
+    }
+    
+    public void setBloomFilteringEnabled(boolean bloomFilteringEnabled) {
+        this.bloomFilteringEnabled = bloomFilteringEnabled;
+    }
+    
+    public boolean isBloomFilteringEnabled() {
+        return bloomFilteringEnabled;
     }
 }
