@@ -319,8 +319,10 @@ public class TransactionOutput extends ChildMessage implements Serializable {
      */
     public boolean isWatched(TransactionBag transactionBag) {
         try {
-            Script script = getScriptPubKey();
-            return transactionBag.isWatchedScript(script);
+            // Performance improvement for 37coins: We don't use watched the script feature
+            return false;
+//            Script script = getScriptPubKey();
+//            return transactionBag.isWatchedScript(script);
         } catch (ScriptException e) {
             // Just means we didn't understand the output of this transaction: ignore it.
             log.debug("Could not parse tx output script: {}", e.toString());
@@ -333,16 +335,22 @@ public class TransactionOutput extends ChildMessage implements Serializable {
      */
     public boolean isMine(TransactionBag transactionBag) {
         try {
+            // Performance improvement for 37coins: We just own P2SH addresses
             Script script = getScriptPubKey();
-            if (script.isSentToRawPubKey()) {
-                byte[] pubkey = script.getPubKey();
-                return transactionBag.isPubKeyMine(pubkey);
-            } if (script.isPayToScriptHash()) {
+            if (script.isPayToScriptHash()) {
                 return transactionBag.isPayToScriptHashMine(script.getPubKeyHash());
             } else {
-                byte[] pubkeyHash = script.getPubKeyHash();
-                return transactionBag.isPubKeyHashMine(pubkeyHash);
+                return false;
             }
+//            if (script.isSentToRawPubKey()) {
+//                byte[] pubkey = script.getPubKey();
+//                return transactionBag.isPubKeyMine(pubkey);
+//            } if (script.isPayToScriptHash()) {
+//                return transactionBag.isPayToScriptHashMine(script.getPubKeyHash());
+//            } else {
+//                byte[] pubkeyHash = script.getPubKeyHash();
+//                return transactionBag.isPubKeyHashMine(pubkeyHash);
+//            }            
         } catch (ScriptException e) {
             // Just means we didn't understand the output of this transaction: ignore it.
             log.debug("Could not parse tx output script: {}", e.toString());
