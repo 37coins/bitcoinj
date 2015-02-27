@@ -947,7 +947,9 @@ public class PeerGroup implements TransactionBroadcaster {
             checkState(!wallets.contains(wallet));
             wallets.add(wallet);
             wallet.setTransactionBroadcaster(this);
-            wallet.addEventListener(walletEventListener, Threading.SAME_THREAD);
+            // Performance improvement for 37coins: don't add the PeerGroup as a Wallet listener. It is used just
+            // to update the bloom filters and we are not going to use bloom filters anymore
+            //wallet.addEventListener(walletEventListener, Threading.SAME_THREAD);
             addPeerFilterProvider(wallet);
             for (Peer peer : peers) {
                 peer.addWallet(wallet);
@@ -1010,7 +1012,9 @@ public class PeerGroup implements TransactionBroadcaster {
     public void removeWallet(Wallet wallet) {
         wallets.remove(checkNotNull(wallet));
         peerFilterProviders.remove(wallet);
-        wallet.removeEventListener(walletEventListener);
+        // Performance improvement for 37coins: don't add the PeerGroup as a Wallet listener. It is used just
+        // to update the bloom filters and we are not going to use bloom filters anymore
+        //wallet.removeEventListener(walletEventListener);
         wallet.setTransactionBroadcaster(null);
         for (Peer peer : peers) {
             peer.removeWallet(wallet);
