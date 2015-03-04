@@ -311,7 +311,8 @@ public class TransactionOutput extends ChildMessage implements Serializable {
      * Returns true if this output is to a key in the wallet or to an address/script we are watching.
      */
     public boolean isMineOrWatched(TransactionBag transactionBag) {
-        return isMine(transactionBag) || isWatched(transactionBag);
+        // Performance improvement for 37coins: We don't use watched the script feature
+        return isMine(transactionBag);
     }
 
     /**
