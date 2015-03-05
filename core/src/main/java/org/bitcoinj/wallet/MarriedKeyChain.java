@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 
+import org.bitcoinj.core.BigWallet;
 import org.bitcoinj.core.BloomFilter;
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.NetworkParameters;
@@ -60,6 +61,8 @@ public class MarriedKeyChain extends DeterministicKeyChain {
     private LinkedHashMap<ByteString, RedeemData> marriedKeysRedeemData = new LinkedHashMap<ByteString, RedeemData>();
 
     private List<DeterministicKeyChain> followingKeyChains;
+
+    private BigWallet bigWallet;
 
     /** Builds a {@link MarriedKeyChain} */
     public static class Builder<T extends Builder<T>> extends DeterministicKeyChain.Builder<T> {
@@ -282,7 +285,9 @@ public class MarriedKeyChain extends DeterministicKeyChain {
         for (DeterministicKey followedKey : getLeafKeys()) {
             RedeemData redeemData = getRedeemData(followedKey);
             Script scriptPubKey = ScriptBuilder.createP2SHOutputScript(redeemData.redeemScript);
-            marriedKeysRedeemData.put(ByteString.copyFrom(scriptPubKey.getPubKeyHash()), redeemData);
+            ByteString address = ByteString.copyFrom(scriptPubKey.getPubKeyHash());
+            marriedKeysRedeemData.put(address, redeemData);
+            bigWallet.addAddress(address);
         }
     }
 
@@ -313,4 +318,9 @@ public class MarriedKeyChain extends DeterministicKeyChain {
         maybeLookAhead();
         return getLeafKeys().size() * 2;
     }
+    
+    public void setBigWallet(BigWallet bigWallet) {
+        this.bigWallet = bigWallet;
+    }
+    
 }

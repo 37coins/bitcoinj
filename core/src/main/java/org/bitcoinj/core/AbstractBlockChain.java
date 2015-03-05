@@ -137,6 +137,8 @@ public abstract class AbstractBlockChain {
     private double falsePositiveRate;
     private double falsePositiveTrend;
     private double previousFalsePositiveRate;
+    
+    private BigWallet bigWallet;
 
 
     /**
@@ -535,7 +537,7 @@ public abstract class AbstractBlockChain {
         }
     }
 
-    private void informListenersForNewBlock(final Block block, final NewBlockType newBlockType,
+    private void informListenersForNewBlock(final Block newBlock, final NewBlockType newBlockType,
                                             @Nullable final List<Sha256Hash> filteredTxHashList,
                                             @Nullable final Map<Sha256Hash, Transaction> filteredTxn,
                                             final StoredBlock newStoredBlock) throws VerificationException {
@@ -545,74 +547,48 @@ public abstract class AbstractBlockChain {
         boolean first = true;
         Set<Sha256Hash> falsePositives = Sets.newHashSet();
         if (filteredTxHashList != null) falsePositives.addAll(filteredTxHashList);
-        for (final ListenerRegistration<BlockChainListener> registration : listeners) {
-            if (registration.executor == Threading.SAME_THREAD) {
-                informListenerForNewTransactions(block, newBlockType, filteredTxHashList, filteredTxn,
-                        newStoredBlock, first, registration.listener, falsePositives);
-                if (newBlockType == NewBlockType.BEST_CHAIN)
-                    registration.listener.notifyNewBestBlock(newStoredBlock);
-            } else {
-                // Listener wants to be run on some other thread, so marshal it across here.
-                final boolean notFirst = !first;
-                registration.executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            // We can't do false-positive handling when executing on another thread
-                            Set<Sha256Hash> ignoredFalsePositives = Sets.newHashSet();
-                            informListenerForNewTransactions(block, newBlockType, filteredTxHashList, filteredTxn,
-                                    newStoredBlock, notFirst, registration.listener, ignoredFalsePositives);
-                            if (newBlockType == NewBlockType.BEST_CHAIN)
-                                registration.listener.notifyNewBestBlock(newStoredBlock);
-                        } catch (VerificationException e) {
-                            log.error("Block chain listener threw exception: ", e);
-                            // Don't attempt to relay this back to the original peer thread if this was an async
-                            // listener invocation.
-                            // TODO: Make exception reporting a global feature and use it here.
-                        }
-                    }
-                });
-            }
-            first = false;
-        }
-
-        trackFalsePositives(falsePositives.size());
-    }
-
-    private static void informListenerForNewTransactions(Block block, NewBlockType newBlockType,
-                                                         @Nullable List<Sha256Hash> filteredTxHashList,
-                                                         @Nullable Map<Sha256Hash, Transaction> filteredTxn,
-                                                         StoredBlock newStoredBlock, boolean first,
-                                                         BlockChainListener listener,
-                                                         Set<Sha256Hash> falsePositives) throws VerificationException {
-        if (block.transactions != null) {
+        if (newBlock.transactions != null) {
             // If this is not the first wallet, ask for the transactions to be duplicated before being given
             // to the wallet when relevant. This ensures that if we have two connected wallets and a tx that
             // is relevant to both of them, they don't end up accidentally sharing the same object (which can
             // result in temporary in-memory corruption during re-orgs). See bug 257. We only duplicate in
             // the case of multiple wallets to avoid an unnecessary efficiency hit in the common case.
-            sendTransactionsToListener(newStoredBlock, newBlockType, listener, 0, block.transactions,
-                    !first, falsePositives);
-        } else if (filteredTxHashList != null) {
-            checkNotNull(filteredTxn);
-            // We must send transactions to listeners in the order they appeared in the block - thus we iterate over the
-            // set of hashes and call sendTransactionsToListener with individual txn when they have not already been
-            // seen in loose broadcasts - otherwise notifyTransactionIsInBlock on the hash.
+            boolean clone = !first;
             int relativityOffset = 0;
-            for (Sha256Hash hash : filteredTxHashList) {
-                Transaction tx = filteredTxn.get(hash);
-                if (tx != null) {
-                    sendTransactionsToListener(newStoredBlock, newBlockType, listener, relativityOffset,
-                            Arrays.asList(tx), !first, falsePositives);
-                } else {
-                    if (listener.notifyTransactionIsInBlock(hash, newStoredBlock, newBlockType, relativityOffset)) {
-                        falsePositives.remove(hash);
+            for (Transaction tx : newBlock.transactions) {
+                try {
+                    //if (true) {
+                    if (bigWallet==null || bigWallet.isTransactionRelevant(tx)){
+                        for (final ListenerRegistration<BlockChainListener> registration : listeners) {
+                                if (registration.listener.isTransactionRelevant(tx)) {
+                                    falsePositives.remove(tx.getHash());
+                                    if (clone)
+                                        tx = new Transaction(tx.params, tx.bitcoinSerialize());
+                                    registration.listener.receiveFromBlock(tx, newStoredBlock, newBlockType, relativityOffset++);
+                                }
+                        }                    
                     }
+                } catch (ScriptException e) {
+                    // We don't want scripts we don't understand to break the block chain so just note that this tx was
+                    // not scanned here and continue.
+                    log.warn("Failed to parse a script: " + e.toString());
+                } catch (ProtocolException e) {
+                    // Failed to duplicate tx, should never happen.
+                    throw new RuntimeException(e);
                 }
-                relativityOffset++;
+            }
+        } 
+        if (newBlockType == NewBlockType.BEST_CHAIN) {
+            for (final ListenerRegistration<BlockChainListener> registration : listeners) {            
+                registration.listener.notifyNewBestBlock(newStoredBlock);
             }
         }
+        first = false;
+        trackFalsePositives(falsePositives.size());
     }
+
+
+
 
     /**
      * Gets the median timestamp of the last 11 blocks
@@ -767,31 +743,6 @@ public abstract class AbstractBlockChain {
     public enum NewBlockType {
         BEST_CHAIN,
         SIDE_CHAIN
-    }
-
-    private static void sendTransactionsToListener(StoredBlock block, NewBlockType blockType,
-                                                   BlockChainListener listener,
-                                                   int relativityOffset,
-                                                   List<Transaction> transactions,
-                                                   boolean clone,
-                                                   Set<Sha256Hash> falsePositives) throws VerificationException {
-        for (Transaction tx : transactions) {
-            try {
-                if (listener.isTransactionRelevant(tx)) {
-                    falsePositives.remove(tx.getHash());
-                    if (clone)
-                        tx = new Transaction(tx.params, tx.bitcoinSerialize());
-                    listener.receiveFromBlock(tx, block, blockType, relativityOffset++);
-                }
-            } catch (ScriptException e) {
-                // We don't want scripts we don't understand to break the block chain so just note that this tx was
-                // not scanned here and continue.
-                log.warn("Failed to parse a script: " + e.toString());
-            } catch (ProtocolException e) {
-                // Failed to duplicate tx, should never happen.
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     protected void setChainHead(StoredBlock chainHead) throws BlockStoreException {
@@ -1100,5 +1051,9 @@ public abstract class AbstractBlockChain {
         falsePositiveRate = 0;
         falsePositiveTrend = 0;
         previousFalsePositiveRate = 0;
+    }
+    
+    public void setBigWallet(BigWallet bigWallet) {
+        this.bigWallet = bigWallet;
     }
 }

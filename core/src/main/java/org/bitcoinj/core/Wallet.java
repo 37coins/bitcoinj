@@ -27,7 +27,9 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.protobuf.ByteString;
+
 import net.jcip.annotations.GuardedBy;
+
 import org.bitcoin.protocols.payments.Protos.PaymentDetails;
 import org.bitcoinj.core.TransactionConfidence.ConfidenceType;
 import org.bitcoinj.crypto.*;
@@ -221,6 +223,8 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
 
     // If this is set then the wallet selects spendable candidate outputs from a UTXO provider.
     @Nullable volatile private UTXOProvider vUTXOProvider;
+    
+    private BigWallet bigWallet;
 
     /**
      * Creates a new, empty wallet with a randomly chosen seed and no transactions. Make sure to provide for sufficient
@@ -279,15 +283,15 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
         // Performance improvement for 37coins: cache getTransactions()
         observableMapListener = new ObservableMapListener() {
             @Override
-            public void mapKeyValueChanged(ObservableMap arg0, Object arg1, Object arg2) {
+            public void mapKeyValueChanged(ObservableMap map, Object arg1, Object arg2) {
                 invalidateCache();
             }
             @Override
-            public void mapKeyRemoved(ObservableMap arg0, Object arg1, Object arg2) {
+            public void mapKeyRemoved(ObservableMap map, Object arg1, Object arg2) {
                 invalidateCache();
             }
             @Override
-            public void mapKeyAdded(ObservableMap arg0, Object arg1) {
+            public void mapKeyAdded(ObservableMap map, Object key) {
                 invalidateCache();
             }
             private void invalidateCache() {
@@ -381,6 +385,11 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
         }
     }
 
+    public void setBigWallet(BigWallet bigWallet) {
+        this.bigWallet = bigWallet;
+    }
+    
+    
     /******************************************************************************************************************/
 
     //region Key Management
@@ -2440,6 +2449,7 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
         // This is safe even if the listener has been added before, as TransactionConfidence ignores duplicate
         // registration requests. That makes the code in the wallet simpler.
         tx.getConfidence().addEventListener(txConfidenceListener, Threading.SAME_THREAD);
+        if (bigWallet!=null) bigWallet.addTransaction(tx.getHash(), tx);
     }
 
     /**
