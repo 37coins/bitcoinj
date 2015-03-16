@@ -1,11 +1,15 @@
 package org.bitcoinj.net;
 
-import com.google.common.collect.Lists;
+import java.util.Collection;
+import java.util.LinkedList;
+
 import org.bitcoinj.core.BloomFilter;
 import org.bitcoinj.core.PeerFilterProvider;
-import com.google.common.collect.ImmutableList;
+import org.bitcoinj.utils.Threading;
 
-import java.util.LinkedList;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.CycleDetectingLockFactory;
 
 // This code is unit tested by the PeerGroup tests.
 
@@ -40,6 +44,14 @@ public class FilterMerger {
     }
 
     public Result calculate(ImmutableList<PeerFilterProvider> providers) {
+        if (providers.size() < 10000 || Threading.getPolicy().equals(CycleDetectingLockFactory.Policies.DISABLED)) {
+            return calculateJustAFewProviders(providers);
+        } else {
+            return calculateLotsOfProviders(providers);          
+        }
+    }
+
+    public Result calculateJustAFewProviders(ImmutableList<PeerFilterProvider> providers) {
         LinkedList<PeerFilterProvider> begunProviders = Lists.newLinkedList();
         try {
             // All providers must be in a consistent, unchanging state because the filter is a merged one that's
@@ -88,6 +100,45 @@ public class FilterMerger {
         }
     }
 
+    public Result calculateLotsOfProviders(ImmutableList<PeerFilterProvider> providers) {
+      if (true) throw new UnsupportedOperationException("Work in progress, don't use this yet");
+      Collection<BloomFilter> filters = new LinkedList<BloomFilter>();
+      Result result = new Result();
+      result.earliestKeyTimeSecs = Long.MAX_VALUE;
+      boolean requiresUpdateAll = false;
+      // Set lastBloomFilterElementCount to Integer.MAX_VALUE so BloomFilter constructor uses the max values allowed.  
+      lastBloomFilterElementCount = Integer.MAX_VALUE;
+      double fpRate = vBloomFilterFPRate;
+      for (PeerFilterProvider provider : providers) {
+          try {
+              provider.beginBloomFilterCalculation();
+              result.earliestKeyTimeSecs = Math.min(result.earliestKeyTimeSecs, provider.getEarliestKeyCreationTime());
+              int elements = provider.getBloomFilterElementCount();
+              requiresUpdateAll = requiresUpdateAll || provider.isRequiringUpdateAllBloomFilter();
+              if (elements > 0) {
+                  filters.add(provider.getBloomFilter(lastBloomFilterElementCount, fpRate, bloomFilterTweak));                      
+              }
+          } finally {
+              provider.endBloomFilterCalculation();
+          }
+      }
+      // Now adjust the earliest key time backwards by a week to handle the case of clock drift. This can occur
+      // both in block header timestamps and if the users clock was out of sync when the key was first created
+      // (to within a small amount of tolerance).
+      result.earliestKeyTimeSecs -= 86400 * 7;
+    
+      BloomFilter.BloomUpdate bloomFlags =
+              requiresUpdateAll ? BloomFilter.BloomUpdate.UPDATE_ALL : BloomFilter.BloomUpdate.UPDATE_P2PUBKEY_ONLY;
+      BloomFilter filter = new BloomFilter(lastBloomFilterElementCount, fpRate, bloomFilterTweak, bloomFlags);
+      for (BloomFilter item : filters) {
+        filter.merge(item);
+      }
+      result.changed = !filter.equals(lastFilter);
+      result.filter = lastFilter = filter;
+      return result;
+    }
+    
+    
     public void setBloomFilterFPRate(double bloomFilterFPRate) {
         this.vBloomFilterFPRate = bloomFilterFPRate;
     }
@@ -100,3 +151,5 @@ public class FilterMerger {
         return lastFilter;
     }
 }
+
+
