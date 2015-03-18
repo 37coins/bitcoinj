@@ -211,6 +211,8 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
 
     // If this is set then the wallet selects spendable candidate outputs from a UTXO provider.
     @Nullable volatile private UTXOProvider vUTXOProvider;
+    
+    private BigWallet bigWallet;
 
     /**
      * Creates a new, empty wallet with a randomly chosen seed and no transactions. Make sure to provide for sufficient
@@ -345,6 +347,11 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
         }
     }
 
+    public void setBigWallet(BigWallet bigWallet) {
+        this.bigWallet = bigWallet;
+    }
+    
+    
     /******************************************************************************************************************/
 
     //region Key Management
@@ -2397,6 +2404,7 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
         // This is safe even if the listener has been added before, as TransactionConfidence ignores duplicate
         // registration requests. That makes the code in the wallet simpler.
         tx.getConfidence().addEventListener(txConfidenceListener, Threading.SAME_THREAD);
+        if (bigWallet!=null) bigWallet.addTransaction(tx.getHash(), tx);
     }
 
     /**
