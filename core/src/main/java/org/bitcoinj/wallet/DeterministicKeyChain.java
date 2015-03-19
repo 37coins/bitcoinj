@@ -519,6 +519,12 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
         basicKeyChain.importKeys(ImmutableList.of(key));
     }
 
+    public void maybeMarkKeyAsUsed(ECKey key) {
+        DeterministicKey k = findKeyFromPubKey(key.getPubKey());
+        if (k == null) return;
+        markKeyAsUsed(k);        
+    }
+    
     /**
      * Mark the DeterministicKey as used.
      * Also correct the issued{Internal|External}Keys counter, because all lower children seem to be requested already.

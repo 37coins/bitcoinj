@@ -375,12 +375,10 @@ public class KeyChainGroup implements KeyBag {
             return;   // Not our P2SH address.
         for (ECKey key : data.keys) {
             for (DeterministicKeyChain chain : chains) {
-                DeterministicKey k = chain.findKeyFromPubKey(key.getPubKey());
-                if (k == null) continue;
-                chain.markKeyAsUsed(k);
-                maybeMarkCurrentAddressAsUsed(address);
+                chain.maybeMarkKeyAsUsed(key);
             }
         }
+        maybeMarkCurrentAddressAsUsed(address);
     }
 
     @Nullable

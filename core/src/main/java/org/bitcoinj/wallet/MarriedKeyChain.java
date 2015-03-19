@@ -152,6 +152,21 @@ public class MarriedKeyChain extends DeterministicKeyChain {
     public boolean isMarried() {
         return true;
     }
+    
+    public void maybeMarkKeyAsUsed(ECKey key) {
+        lock.lock();
+        try {
+            super.maybeMarkKeyAsUsed(key);
+            if (followingKeyChains != null) {
+                for (DeterministicKeyChain followingChain : followingKeyChains) {
+                    followingChain.maybeMarkKeyAsUsed(key);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+    
 
     /** Create a new married key and return the matching output script */
     @Override
