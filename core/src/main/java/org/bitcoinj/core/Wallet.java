@@ -48,11 +48,15 @@ import org.bitcoinj.utils.Threading;
 import org.bitcoinj.wallet.*;
 import org.bitcoinj.wallet.Protos.Wallet.EncryptionType;
 import org.bitcoinj.wallet.WalletTransaction.Pool;
+import org.jdesktop.observablecollections.ObservableCollections;
+import org.jdesktop.observablecollections.ObservableMap;
+import org.jdesktop.observablecollections.ObservableMapListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongycastle.crypto.params.KeyParameter;
 
 import javax.annotation.Nullable;
+
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -130,10 +134,16 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
     //           to the user in the UI, etc). A transaction can leave dead and move into spent/unspent if there is a
     //           re-org to a chain that doesn't include the double spend.
 
-    @VisibleForTesting final Map<Sha256Hash, Transaction> pending;
-    @VisibleForTesting final Map<Sha256Hash, Transaction> unspent;
-    @VisibleForTesting final Map<Sha256Hash, Transaction> spent;
-    @VisibleForTesting final Map<Sha256Hash, Transaction> dead;
+    // Performance improvement for 37coins: cache getTransactions()
+    @VisibleForTesting final ObservableMap<Sha256Hash, Transaction> pending;
+    @VisibleForTesting final ObservableMap<Sha256Hash, Transaction> unspent;
+    @VisibleForTesting final ObservableMap<Sha256Hash, Transaction> spent;
+    @VisibleForTesting final ObservableMap<Sha256Hash, Transaction> dead;
+    
+    Set<Transaction> nonDeadTransactions;
+    Set<Transaction> allTransactions;
+
+    ObservableMapListener observableMapListener;
 
     // All transactions together.
     protected final Map<Sha256Hash, Transaction> transactions;
@@ -268,10 +278,36 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
         if (this.keychain.numKeys() == 0)
             this.keychain.createAndActivateNewHDChain();
         watchedScripts = Sets.newHashSet();
-        unspent = new HashMap<Sha256Hash, Transaction>();
-        spent = new HashMap<Sha256Hash, Transaction>();
-        pending = new HashMap<Sha256Hash, Transaction>();
-        dead = new HashMap<Sha256Hash, Transaction>();
+        // Performance improvement for 37coins: cache getTransactions()
+        observableMapListener = new ObservableMapListener() {
+            @Override
+            public void mapKeyValueChanged(ObservableMap arg0, Object arg1, Object arg2) {
+                invalidateCache();
+            }
+            @Override
+            public void mapKeyRemoved(ObservableMap arg0, Object arg1, Object arg2) {
+                invalidateCache();
+            }
+            @Override
+            public void mapKeyAdded(ObservableMap arg0, Object arg1) {
+                invalidateCache();
+            }
+            private void invalidateCache() {
+                nonDeadTransactions = null;
+                allTransactions = null;
+            }
+        };
+        
+        unspent = ObservableCollections.observableMap(new HashMap<Sha256Hash, Transaction>());
+        unspent.addObservableMapListener(observableMapListener);
+        spent = ObservableCollections.observableMap(new HashMap<Sha256Hash, Transaction>());
+        spent.addObservableMapListener(observableMapListener);
+        pending = ObservableCollections.observableMap(new HashMap<Sha256Hash, Transaction>());
+        pending.addObservableMapListener(observableMapListener);
+        dead = ObservableCollections.observableMap(new HashMap<Sha256Hash, Transaction>());
+        dead.addObservableMapListener(observableMapListener);
+        nonDeadTransactions = null;
+        allTransactions = null;
         transactions = new HashMap<Sha256Hash, Transaction>();
         eventListeners = new CopyOnWriteArrayList<ListenerRegistration<WalletEventListener>>();
         extensions = new HashMap<String, WalletExtension>();
@@ -2329,13 +2365,20 @@ public class Wallet extends BaseTaggableObject implements Serializable, BlockCha
     public Set<Transaction> getTransactions(boolean includeDead) {
         lock.lock();
         try {
-            Set<Transaction> all = new HashSet<Transaction>();
-            all.addAll(unspent.values());
-            all.addAll(spent.values());
-            all.addAll(pending.values());
-            if (includeDead)
-                all.addAll(dead.values());
-            return all;
+            // Performance improvement for 37coins: cache getTransactions()
+            if (nonDeadTransactions == null || allTransactions == null) {
+                nonDeadTransactions = new HashSet<Transaction>();
+                nonDeadTransactions.addAll(unspent.values());
+                nonDeadTransactions.addAll(spent.values());
+                nonDeadTransactions.addAll(pending.values());
+                allTransactions = new HashSet<Transaction>(nonDeadTransactions);
+                allTransactions.addAll(dead.values());
+            }
+            if (includeDead) {
+                return allTransactions;
+            } else {
+                return nonDeadTransactions;
+            }
         } finally {
             lock.unlock();
         }
