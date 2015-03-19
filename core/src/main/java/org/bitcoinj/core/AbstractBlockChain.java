@@ -891,20 +891,24 @@ public abstract class AbstractBlockChain {
      * Returns true if any connected wallet considers any transaction in the block to be relevant.
      */
     private boolean containsRelevantTransactions(Block block) {
+        // Performance improvement for 37coins: It is quicker to return always true here and force us to process
+        // every block than to avoid processing some blocks and have to execute containsRelevantTransactions() for
+        // each block we download.
+        return true;
         // Does not need to be locked.
-        for (Transaction tx : block.transactions) {
-            try {
-                for (final ListenerRegistration<BlockChainListener> registration : listeners) {
-                    if (registration.executor != Threading.SAME_THREAD) continue;
-                    if (registration.listener.isTransactionRelevant(tx)) return true;
-                }
-            } catch (ScriptException e) {
-                // We don't want scripts we don't understand to break the block chain so just note that this tx was
-                // not scanned here and continue.
-                log.warn("Failed to parse a script: " + e.toString());
-            }
-        }
-        return false;
+//        for (Transaction tx : block.transactions) {
+//            try {
+//                for (final ListenerRegistration<BlockChainListener> registration : listeners) {
+//                    if (registration.executor != Threading.SAME_THREAD) continue;
+//                    if (registration.listener.isTransactionRelevant(tx)) return true;
+//                }
+//            } catch (ScriptException e) {
+//                // We don't want scripts we don't understand to break the block chain so just note that this tx was
+//                // not scanned here and continue.
+//                log.warn("Failed to parse a script: " + e.toString());
+//            }
+//        }
+//        return false;
     }
 
     /**
