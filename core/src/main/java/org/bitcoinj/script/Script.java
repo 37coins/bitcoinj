@@ -217,6 +217,7 @@ public class Script {
         }
     }
 
+    private Boolean isSentToRawPubKey;
     /**
      * Returns true if this script is of the form <pubkey> OP_CHECKSIG. This form was originally intended for transactions
      * where the peers talked to each other directly via TCP/IP, but has fallen out of favor with time due to that mode
@@ -224,10 +225,14 @@ public class Script {
      * useful more exotic types of transaction, but today most payments are to addresses.
      */
     public boolean isSentToRawPubKey() {
-        return chunks.size() == 2 && chunks.get(1).equalsOpCode(OP_CHECKSIG) &&
-               !chunks.get(0).isOpCode() && chunks.get(0).data.length > 1;
+        if (isSentToRawPubKey == null) {
+            isSentToRawPubKey = chunks.size() == 2 && chunks.get(1).equalsOpCode(OP_CHECKSIG) &&
+                    !chunks.get(0).isOpCode() && chunks.get(0).data.length > 1;            
+        }
+        return isSentToRawPubKey;
     }
 
+    private Boolean isSentToAddress;
     /**
      * Returns true if this script is of the form DUP HASH160 <pubkey hash> EQUALVERIFY CHECKSIG, ie, payment to an
      * address like 1VayNert3x1KzbpzMGt2qdqrAThiRovi8. This form was originally intended for the case where you wish
@@ -235,12 +240,15 @@ public class Script {
      * way to make payments due to the short and recognizable base58 form addresses come in.
      */
     public boolean isSentToAddress() {
-        return chunks.size() == 5 &&
-               chunks.get(0).equalsOpCode(OP_DUP) &&
-               chunks.get(1).equalsOpCode(OP_HASH160) &&
-               chunks.get(2).data.length == Address.LENGTH &&
-               chunks.get(3).equalsOpCode(OP_EQUALVERIFY) &&
-               chunks.get(4).equalsOpCode(OP_CHECKSIG);
+        if (isSentToAddress == null) {
+            isSentToAddress = chunks.size() == 5 &&
+                    chunks.get(0).equalsOpCode(OP_DUP) &&
+                    chunks.get(1).equalsOpCode(OP_HASH160) &&
+                    chunks.get(2).data.length == Address.LENGTH &&
+                    chunks.get(3).equalsOpCode(OP_EQUALVERIFY) &&
+                    chunks.get(4).equalsOpCode(OP_CHECKSIG);            
+        }
+        return isSentToAddress;
     }
 
     /**
@@ -617,6 +625,8 @@ public class Script {
         }
     }
 
+    private Boolean isPayToScriptHash;
+    
     /**
      * <p>Whether or not this is a scriptPubKey representing a pay-to-script-hash output. In such outputs, the logic that
      * controls reclamation is not actually in the output at all. Instead there's just a hash, and it's up to the
@@ -631,14 +641,17 @@ public class Script {
      * Bitcoin system).</p>
      */
     public boolean isPayToScriptHash() {
-        // We have to check against the serialized form because BIP16 defines a P2SH output using an exact byte
-        // template, not the logical program structure. Thus you can have two programs that look identical when
-        // printed out but one is a P2SH script and the other isn't! :(
-        byte[] program = getProgram();
-        return program.length == 23 &&
-               (program[0] & 0xff) == OP_HASH160 &&
-               (program[1] & 0xff) == 0x14 &&
-               (program[22] & 0xff) == OP_EQUAL;
+        if (isPayToScriptHash == null) {
+            // We have to check against the serialized form because BIP16 defines a P2SH output using an exact byte
+            // template, not the logical program structure. Thus you can have two programs that look identical when
+            // printed out but one is a P2SH script and the other isn't! :(
+            byte[] program = getProgram();
+            isPayToScriptHash = program.length == 23 &&
+                    (program[0] & 0xff) == OP_HASH160 &&
+                    (program[1] & 0xff) == 0x14 &&
+                    (program[22] & 0xff) == OP_EQUAL;
+        }
+        return isPayToScriptHash;
     }
 
     /**
