@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata modelVersion="1.1.0">
+  <groupId>org.bitcoinj</groupId>
+  <artifactId>pomegranate-bitcoinj-parent</artifactId>
+  <version>0.13.0.3-SNAPSHOT</version>
+  <versioning>
+    <snapshot>
+      <timestamp>20150320.152153</timestamp>
+      <buildNumber>1</buildNumber>
+    </snapshot>
+    <lastUpdated>20150320152153</lastUpdated>
+    <snapshotVersions>
+      <snapshotVersion>
+        <extension>pom</extension>
+        <value>0.13.0.3-20150320.152153-1</value>
+        <updated>20150320152153</updated>
+      </snapshotVersion>
+    </snapshotVersions>
+  </versioning>
+</metadata>
